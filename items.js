@@ -297,17 +297,3 @@ window.deleteItem = (id, name, imageUrl) => {
   );
 };
 
-// ─ Re-render table when APP_ITEMS updates ─
-const _origNavTo = window.navTo;
-// Hook: when on items section, re-render on data update
-const _itemsObserver = new MutationObserver(()=>{
-  if(window.currentSec==='items') applyItemsFilter();
-});
-// Watch APP_ITEMS changes via listener in index.html (already calls initDashboard/initAlerts)
-// Items section uses applyItemsFilter() which reads APP_ITEMS directly
-// Trigger re-render when items change and section is active
-db.collection('items').onSnapshot(()=>{
-  if(window.currentSec==='items') {
-    setTimeout(applyItemsFilter, 50);
-  }
-});

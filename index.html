@@ -473,12 +473,15 @@ window.destroyChart = key => {
   if(_charts[key]){ _charts[key].destroy(); delete _charts[key]; }
 };
 
-// ─ Chart default ─
-Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-Chart.defaults.font.size = 11;
+// ─ Chart default (guarded — Chart.js may load after this script) ─
+if(typeof Chart !== 'undefined') {
+  Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+  Chart.defaults.font.size = 11;
+}
 
 // ─ Navigation ─
 const SEC_TITLES = {dashboard:'Dashboard',items:'Item Master',stock:'Stock Entry',reports:'Reports',alerts:'Alerts'};
+const SEC_INIT   = {dashboard:'initDashboard',items:'initItems',stock:'initStock',reports:'initReports',alerts:'initAlerts'};
 window.currentSec = 'dashboard';
 
 window.navTo = sec => {
@@ -490,8 +493,8 @@ window.navTo = sec => {
   document.getElementById('mob-title').textContent = SEC_TITLES[sec]||sec;
   window.currentSec = sec;
   closeSidebar();
-  const fns={dashboard:initDashboard,items:initItems,stock:initStock,reports:initReports,alerts:initAlerts};
-  if(fns[sec]) fns[sec]();
+  const fn = SEC_INIT[sec] && window[SEC_INIT[sec]];
+  if(typeof fn === 'function') fn();
 };
 
 // ─ Sidebar mobile ─
@@ -522,30 +525,46 @@ window.updateAlertBadge = () => {
   }
 };
 
-// ─ Boot (deferred until all JS files are loaded) ─
-document.addEventListener('DOMContentLoaded', () => {
-  // Load locks first, then start items listener
-  db.collection('monthLocks').get().then(snap=>{
-    snap.docs.forEach(d=>{ window.APP_LOCKS[d.id]=d.data(); });
-  }).catch(()=>{});
 
-  window._unsubItems = db.collection('items').orderBy('name').onSnapshot(snap => {
-    window.APP_ITEMS = snap.docs.map(d=>({id:d.id,...d.data()}));
-    if(window.currentSec==='dashboard' && typeof initDashboard==='function') initDashboard();
-    if(window.currentSec==='alerts'    && typeof initAlerts==='function')    initAlerts();
-  }, err => {
-    console.error('Items sync error', err);
-    toast('Connection error — check Firebase config','err');
-  });
-
-  navTo('dashboard');
-});
 </script>
 
-<script defer src="dashboard.js"></script>
-<script defer src="items.js"></script>
-<script defer src="stock.js"></script>
-<script defer src="reports.js"></script>
-<script defer src="alerts.js"></script>
+<!-- Module scripts — synchronous, execute in order after Firebase is ready -->
+<script src="dashboard.js"></script>
+<script src="items.js"></script>
+<script src="stock.js"></script>
+<script src="reports.js"></script>
+<script src="alerts.js"></script>
+
+<!-- Boot — runs after every module above has loaded and executed -->
+<script>
+(function boot() {
+  // Apply Chart defaults now that Chart.js is guaranteed loaded
+  if(typeof Chart !== 'undefined') {
+    Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+    Chart.defaults.font.size = 11;
+  }
+
+  // Load month locks
+  db.collection('monthLocks').get().then(snap => {
+    snap.docs.forEach(d => { window.APP_LOCKS[d.id] = d.data(); });
+  }).catch(() => {});
+
+  // Real-time items listener — populates APP_ITEMS and re-renders the active section
+  window._unsubItems = db.collection('items').orderBy('name').onSnapshot(snap => {
+    window.APP_ITEMS = snap.docs.map(d => ({id: d.id, ...d.data()}));
+    // Refresh dashboard, items list, and alerts whenever the items collection changes
+    if(['dashboard','items','alerts'].includes(window.currentSec)) {
+      const fn = window[SEC_INIT[window.currentSec]];
+      if(typeof fn === 'function') fn();
+    }
+  }, err => {
+    console.error('Items sync error', err);
+    toast('Connection error — check Firebase config', 'err');
+  });
+
+  // Navigate to dashboard
+  navTo('dashboard');
+})();
+</script>
 </body>
 </html>
