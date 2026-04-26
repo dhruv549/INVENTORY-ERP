@@ -183,7 +183,7 @@ window.openItemModal = (id=null) => {
 window.handleItemImg = inp => {
   const file = inp.files[0]; if(!file) return;
   if(file.size > 8*1024*1024){ toast('Image too large (max 8 MB)','err'); return; }
-  compressItemImg(file, 900, 700, .82).then(b64=>{
+  compressItemImg(file, 480, 360, .75).then(b64=>{
     _editImgData    = b64;
     _editImgChanged = true;
     const el = document.getElementById('img-prev-tag');
@@ -241,22 +241,9 @@ window.saveItem = async (editId='') => {
   try {
     let imageUrl = editId ? (APP_ITEMS.find(i=>i.id===editId)?.imageUrl||null) : null;
 
-    // Upload new image if changed
+    // Store image as base64 directly in Firestore
     if(_editImgChanged) {
-      if(_editImgData && _editImgData.startsWith('data:')) {
-        // Convert base64 to blob and upload
-        const res  = await fetch(_editImgData);
-        const blob = await res.blob();
-        const ref  = storage.ref(`items/${Date.now()}_${code}`);
-        const snap = await ref.put(blob);
-        imageUrl   = await snap.ref.getDownloadURL();
-      } else {
-        // Image removed
-        if(editId && imageUrl) {
-          try { await storage.refFromURL(imageUrl).delete(); } catch(_){}
-        }
-        imageUrl = null;
-      }
+      imageUrl = (_editImgData && _editImgData.startsWith('data:')) ? _editImgData : null;
     }
 
     const payload = { name, code, category:cat, unit, minStock:mins, imageUrl:imageUrl||null, updatedAt:firebase.firestore.FieldValue.serverTimestamp() };
@@ -293,10 +280,6 @@ window.deleteItem = (id, name, imageUrl) => {
     async () => {
       showLoad('Deleting…');
       try {
-        // Delete image from Storage
-        if(imageUrl) {
-          try { await storage.refFromURL(imageUrl).delete(); } catch(_){}
-        }
         // Delete stock entries for this item
         const snap = await db.collection('stockEntries').where('itemId','==',id).get();
         const batch = db.batch();
