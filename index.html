@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Inventory ERP — Manufacturing</title>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+button,input,select,textarea{font-family:inherit}
+img{display:block;max-width:100%}
+a{text-decoration:none;color:inherit}
+
+:root{
+  --sw:240px; --mnh:60px; --hh:56px;
+  --pri:#2563eb; --pri-d:#1d4ed8; --pri-s:#eff6ff;
+  --red:#ef4444; --red-s:#fef2f2;
+  --grn:#22c55e; --grn-s:#f0fdf4;
+  --amb:#f59e0b; --amb-s:#fffbeb;
+  --pur:#a855f7; --pur-s:#faf5ff;
+  --bg:#f1f5f9; --sur:#fff; --sur2:#f8fafc;
+  --bdr:#e2e8f0; --bdr-d:#cbd5e1;
+  --txt:#0f172a; --mu:#64748b; --fa:#94a3b8;
+  --sb-bg:#1a2332;
+  --sh-sm:0 1px 2px rgba(0,0,0,.06),0 1px 3px rgba(0,0,0,.04);
+  --sh:0 4px 6px -1px rgba(0,0,0,.09),0 2px 4px -2px rgba(0,0,0,.04);
+  --sh-lg:0 10px 15px -3px rgba(0,0,0,.1),0 4px 6px -4px rgba(0,0,0,.05);
+  --sh-xl:0 25px 50px -12px rgba(0,0,0,.22);
+  --r:12px; --rsm:8px; --rlg:16px; --pill:9999px;
+}
+html,body{height:100%;overflow:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--txt);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:3px}
+
+/* ─ Layout ─ */
+#app{display:flex;height:100vh;overflow:hidden}
+#sidebar{width:var(--sw);background:var(--sb-bg);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto;transition:transform .25s}
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+
+/* ─ Sidebar ─ */
+.sb-brand{padding:1.125rem 1rem;display:flex;align-items:center;gap:.7rem;border-bottom:1px solid rgba(255,255,255,.08);flex-shrink:0}
+.sb-brand .sb-ico{width:34px;height:34px;background:var(--pri);border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 2px 8px rgba(37,99,235,.4)}
+.sb-brand .sb-ico svg{width:18px;height:18px;fill:none;stroke:#fff;stroke-width:2}
+.sb-brand .sb-title{font-size:.875rem;font-weight:700;color:#fff;line-height:1.2}
+.sb-brand .sb-sub{font-size:.62rem;color:rgba(255,255,255,.38);margin-top:1px}
+.sb-sect-lbl{padding:1.25rem 1rem .35rem;font-size:.6rem;font-weight:700;color:rgba(255,255,255,.28);letter-spacing:.1em;text-transform:uppercase}
+.nav-link{display:flex;align-items:center;gap:.65rem;padding:.6rem .875rem;border-radius:var(--rsm);margin:.1rem .5rem;color:rgba(255,255,255,.55);font-size:.8125rem;font-weight:500;cursor:pointer;transition:background .13s,color .13s;border:none;background:none;text-align:left;width:calc(100% - 1rem);position:relative}
+.nav-link:hover{background:rgba(255,255,255,.07);color:rgba(255,255,255,.88)}
+.nav-link.active{background:var(--pri);color:#fff}
+.nav-link .nl-ic{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.75;flex-shrink:0}
+.nav-link .nl-badge{margin-left:auto;background:var(--red);color:#fff;font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:var(--pill);min-width:17px;text-align:center}
+.sb-footer{margin-top:auto;padding:.875rem 1rem;border-top:1px solid rgba(255,255,255,.07);font-size:.65rem;color:rgba(255,255,255,.25)}
+
+/* ─ Mobile header ─ */
+#mob-hdr{display:none;align-items:center;gap:.75rem;padding:0 1rem;height:var(--hh);background:var(--sur);border-bottom:1px solid var(--bdr);flex-shrink:0;box-shadow:var(--sh-sm)}
+#mob-menu-btn{background:none;border:none;cursor:pointer;width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:var(--rsm);color:var(--mu)}
+#mob-menu-btn svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2}
+#mob-title{font-size:.975rem;font-weight:700;flex:1}
+#mob-badge{background:var(--red);color:#fff;font-size:.6rem;font-weight:700;padding:1px 6px;border-radius:var(--pill)}
+
+/* ─ Sections ─ */
+.section{display:none;flex:1;overflow-y:auto;padding:1.5rem;-webkit-overflow-scrolling:touch}
+.section.active{display:block}
+
+/* ─ Section header ─ */
+.sec-hdr{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:1.5rem}
+.sec-hdr-l h2{font-size:1.3rem;font-weight:800;letter-spacing:-.02em}
+.sec-hdr-l p{font-size:.8rem;color:var(--mu);margin-top:.15rem}
+.sec-hdr-r{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+
+/* ─ Stat cards ─ */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:.875rem;margin-bottom:1.5rem}
+.stat-card{background:var(--sur);border:1px solid var(--bdr);border-radius:var(--r);padding:1.125rem;display:flex;align-items:flex-start;gap:.875rem;box-shadow:var(--sh-sm);position:relative;overflow:hidden}
+.stat-card::after{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.stat-blue::after{background:var(--pri)} .stat-grn::after{background:var(--grn)} .stat-red::after{background:var(--red)} .stat-amb::after{background:var(--amb)} .stat-pur::after{background:var(--pur)}
+.stat-icon{width:42px;height:42px;border-radius:var(--rsm);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.stat-icon svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.75}
+.stat-blue .stat-icon{background:var(--pri-s);color:var(--pri)} .stat-grn .stat-icon{background:var(--grn-s);color:var(--grn)} .stat-red .stat-icon{background:var(--red-s);color:var(--red)} .stat-amb .stat-icon{background:var(--amb-s);color:var(--amb)} .stat-pur .stat-icon{background:var(--pur-s);color:var(--pur)}
+.stat-num{font-size:1.7rem;font-weight:800;line-height:1}
+.stat-lbl{font-size:.72rem;color:var(--mu);margin-top:.25rem}
+.stat-sub{font-size:.68rem;color:var(--fa);margin-top:.1rem}
+
+/* ─ Charts ─ */
+.charts-row{display:grid;grid-template-columns:1fr 320px;gap:1rem;margin-bottom:1.5rem}
+.chart-card{background:var(--sur);border:1px solid var(--bdr);border-radius:var(--r);padding:1.125rem;box-shadow:var(--sh-sm)}
+.chart-hdr{display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-bottom:.875rem;flex-wrap:wrap}
+.chart-hdr h3{font-size:.875rem;font-weight:700}
+.chart-wrap{position:relative;height:230px}
+
+/* ─ Card ─ */
+.card{background:var(--sur);border:1px solid var(--bdr);border-radius:var(--r);padding:1.25rem;box-shadow:var(--sh-sm)}
+
+/* ─ Table ─ */
+.tbl-wrap{overflow-x:auto;border-radius:var(--r);border:1px solid var(--bdr);background:var(--sur);box-shadow:var(--sh-sm)}
+table{width:100%;border-collapse:collapse;font-size:.8125rem}
+thead{background:var(--sur2);border-bottom:1px solid var(--bdr)}
+th{padding:.7rem 1rem;text-align:left;font-weight:600;font-size:.7rem;color:var(--mu);letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}
+td{padding:.7rem 1rem;border-bottom:1px solid var(--bdr);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tbody tr:hover{background:var(--sur2)}
+
+/* ─ Buttons ─ */
+.btn{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem .9rem;border-radius:var(--rsm);font-size:.8rem;font-weight:600;border:1px solid transparent;cursor:pointer;transition:background .13s,transform .1s,box-shadow .12s;white-space:nowrap}
+.btn svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2.5;flex-shrink:0}
+.btn:hover{transform:translateY(-1px)}
+.btn-pri{background:var(--pri);color:#fff} .btn-pri:hover{background:var(--pri-d);box-shadow:var(--sh)}
+.btn-ghost{background:var(--sur);color:var(--mu);border-color:var(--bdr)} .btn-ghost:hover{background:var(--bg);color:var(--txt)}
+.btn-red{background:var(--red);color:#fff} .btn-red:hover{background:#dc2626}
+.btn-grn{background:var(--grn);color:#fff} .btn-grn:hover{background:#16a34a}
+.btn-sm{padding:.35rem .65rem;font-size:.75rem}
+.btn-ico{width:30px;height:30px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:var(--rsm);background:var(--sur);border:1px solid var(--bdr);color:var(--mu);cursor:pointer;transition:all .12s}
+.btn-ico:hover{background:var(--bg);color:var(--txt)}
+.btn-ico svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2}
+
+/* ─ Search / filter bar ─ */
+.toolbar{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem}
+.srch-wrap{position:relative}
+.srch-ic{position:absolute;left:.65rem;top:50%;transform:translateY(-50%);width:14px;height:14px;fill:none;stroke:var(--fa);stroke-width:2;pointer-events:none}
+.srch-inp{padding:.48rem 2rem .48rem 2rem;border:1px solid var(--bdr);border-radius:var(--rsm);font-size:.8rem;background:var(--sur);color:var(--txt);outline:none;transition:border-color .13s,box-shadow .13s;width:210px}
+.srch-inp:focus{border-color:var(--pri);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.flt-sel{padding:.48rem .7rem;border:1px solid var(--bdr);border-radius:var(--rsm);font-size:.8rem;background:var(--sur);color:var(--txt);outline:none;cursor:pointer}
+.flt-sel:focus{border-color:var(--pri)}
+
+/* ─ Form ─ */
+.fg{margin-bottom:.9rem}
+.fl{display:block;font-size:.78rem;font-weight:600;margin-bottom:.3rem;color:var(--txt)}
+.fl .req{color:var(--red)}
+.fc{width:100%;padding:.58rem .8rem;border:1px solid var(--bdr);border-radius:var(--rsm);font-size:.875rem;color:var(--txt);background:var(--sur);outline:none;transition:border-color .13s,box-shadow .13s}
+.fc:focus{border-color:var(--pri);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.fc.err{border-color:var(--red);background:var(--red-s)}
+textarea.fc{resize:vertical;min-height:72px}
+.form-hint{font-size:.68rem;color:var(--mu);margin-top:.2rem}
+.ferr{font-size:.68rem;color:var(--red);margin-top:.2rem;display:none}
+.ferr.on{display:block}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:.875rem}
+
+/* ─ Image upload ─ */
+.img-up{border:2px dashed var(--bdr);border-radius:var(--r);cursor:pointer;overflow:hidden;transition:border-color .13s}
+.img-up:hover{border-color:var(--pri)}
+.img-up-empty{height:96px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.35rem;color:var(--fa)}
+.img-up-empty svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:1.5}
+.img-up-empty .ul{font-size:.78rem;font-weight:500;color:var(--mu)}
+.img-up-empty .uh{font-size:.68rem}
+.img-prev{position:relative;height:140px;display:none}
+.img-prev img{width:100%;height:100%;object-fit:cover}
+.img-prev-ov{position:absolute;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .13s}
+.img-prev:hover .img-prev-ov{opacity:1}
+.img-prev-ov span{color:#fff;font-size:.78rem;font-weight:500}
+.img-rm{position:absolute;top:.4rem;right:.4rem;width:22px;height:22px;border-radius:50%;background:var(--red);border:none;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;transition:opacity .13s}
+.img-prev:hover .img-rm{opacity:1}
+.img-rm svg{width:10px;height:10px;stroke:currentColor;stroke-width:2.5;fill:none}
+
+/* ─ Badge / pill ─ */
+.badge{display:inline-flex;align-items:center;padding:.16rem .5rem;border-radius:var(--pill);font-size:.65rem;font-weight:700;white-space:nowrap}
+.b-red{background:var(--red-s);color:var(--red)} .b-grn{background:var(--grn-s);color:#15803d} .b-amb{background:var(--amb-s);color:#92400e} .b-blue{background:var(--pri-s);color:var(--pri)} .b-gray{background:var(--sur2);color:var(--mu);border:1px solid var(--bdr)}
+
+/* ─ Modal ─ */
+#modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.52);backdrop-filter:blur(3px);z-index:500;display:none;align-items:center;justify-content:center;padding:1rem;animation:fin .14s}
+#modal-ov.show{display:flex}
+@keyframes fin{from{opacity:0}to{opacity:1}}
+.mbox{background:var(--sur);border-radius:var(--rlg);width:100%;max-width:500px;max-height:90vh;display:flex;flex-direction:column;box-shadow:var(--sh-xl);animation:sup .2s cubic-bezier(.16,1,.3,1)}
+.mbox.mlg{max-width:740px} .mbox.msm{max-width:370px}
+@keyframes sup{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}
+.mhdr{padding:1.125rem 1.375rem;border-bottom:1px solid var(--bdr);display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;flex-shrink:0}
+.mhdr h3{font-size:.975rem;font-weight:700}
+.mhdr p{font-size:.72rem;color:var(--mu);margin-top:.1rem}
+.mcls{padding:.3rem;border:none;background:none;cursor:pointer;color:var(--mu);border-radius:var(--rsm);transition:all .12s;flex-shrink:0}
+.mcls:hover{background:var(--bg);color:var(--txt)}
+.mcls svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;display:block}
+.mbdy{padding:1.375rem;overflow-y:auto;flex:1}
+.mftr{padding:.875rem 1.375rem;border-top:1px solid var(--bdr);background:var(--sur2);display:flex;gap:.6rem;justify-content:flex-end;border-radius:0 0 var(--rlg) var(--rlg);flex-shrink:0}
+
+/* ─ Confirm dialog ─ */
+.conf-icon{width:40px;height:40px;border-radius:50%;background:var(--red-s);display:inline-flex;align-items:center;justify-content:center;margin-bottom:.7rem}
+.conf-icon svg{width:18px;height:18px;stroke:var(--red);stroke-width:2;fill:none}
+
+/* ─ Loading ─ */
+#loading{position:fixed;inset:0;background:rgba(248,250,252,.88);z-index:1000;display:none;align-items:center;justify-content:center;flex-direction:column;gap:.6rem}
+#loading.on{display:flex}
+.spinner{width:34px;height:34px;border:3px solid var(--bdr);border-top-color:var(--pri);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.sp-txt{font-size:.78rem;color:var(--mu);font-weight:500}
+
+/* ─ Toast ─ */
+#toasts{position:fixed;bottom:1.25rem;right:1.25rem;z-index:2000;display:flex;flex-direction:column;gap:.4rem;pointer-events:none}
+.toast{display:flex;align-items:center;gap:.55rem;padding:.65rem .9rem;border-radius:var(--r);font-size:.8rem;font-weight:500;color:#fff;box-shadow:var(--sh-lg);max-width:290px;animation:tin .24s cubic-bezier(.16,1,.3,1)}
+@keyframes tin{from{transform:translateX(110%);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes tout{from{transform:translateX(0);opacity:1}to{transform:translateX(110%);opacity:0}}
+.toast.out{animation:tout .17s ease-in forwards}
+.t-ok{background:#10b981} .t-err{background:var(--red)} .t-info{background:var(--pri)} .t-warn{background:var(--amb)}
+.t-ic{width:17px;height:17px;border-radius:50%;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.t-ic svg{width:9px;height:9px;stroke:#fff;stroke-width:2.5;fill:none}
+
+/* ─ Empty state ─ */
+.empty{text-align:center;padding:3.5rem 1.5rem}
+.empty .eico{width:52px;height:52px;background:var(--sur2);border-radius:13px;display:inline-flex;align-items:center;justify-content:center;margin-bottom:.75rem}
+.empty .eico svg{width:24px;height:24px;stroke:var(--fa);stroke-width:1.5;fill:none}
+.empty h3{font-size:.9rem;font-weight:600;margin-bottom:.25rem}
+.empty p{font-size:.78rem;color:var(--mu);margin-bottom:.875rem;line-height:1.6}
+
+/* ─ Alert items ─ */
+.alert-row{display:flex;align-items:center;gap:.75rem;padding:.75rem;border:1px solid var(--bdr);border-radius:var(--rsm);background:var(--sur);margin-bottom:.45rem}
+.alert-row.danger{border-color:#fecaca;background:var(--red-s)}
+.alert-row.warn{border-color:#fde68a;background:var(--amb-s)}
+.alert-row.info{border-color:#bfdbfe;background:var(--pri-s)}
+
+/* ─ Item thumb ─ */
+.thumb{width:38px;height:38px;border-radius:var(--rsm);object-fit:cover;border:1px solid var(--bdr);background:var(--sur2);display:flex;align-items:center;justify-content:center;font-size:1rem;overflow:hidden;flex-shrink:0}
+.thumb img{width:100%;height:100%;object-fit:cover}
+
+/* ─ Stock entry ─ */
+.qty-inp{width:110px;padding:.38rem .6rem;border:1px solid var(--bdr);border-radius:var(--rsm);font-size:.875rem;text-align:right;outline:none;transition:border-color .13s}
+.qty-inp:focus{border-color:var(--pri);box-shadow:0 0 0 3px rgba(37,99,235,.08)}
+.qty-inp:disabled{background:var(--sur2);color:var(--mu);cursor:not-allowed}
+.rem-inp{flex:1;padding:.38rem .6rem;border:1px solid var(--bdr);border-radius:var(--rsm);font-size:.78rem;outline:none;transition:border-color .13s;min-width:120px}
+.rem-inp:focus{border-color:var(--pri)}
+.rem-inp:disabled{background:var(--sur2);color:var(--mu);cursor:not-allowed}
+
+/* ─ Comparison ─ */
+.cmp-up{color:var(--grn);font-weight:600} .cmp-dn{color:var(--red);font-weight:600} .cmp-eq{color:var(--mu)}
+
+/* ─ Month selector ─ */
+.month-tabs{display:flex;gap:.35rem;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.month-tabs::-webkit-scrollbar{display:none}
+.mtab{flex-shrink:0;padding:.33rem .7rem;border-radius:var(--pill);font-size:.76rem;font-weight:500;border:1px solid var(--bdr);background:var(--sur);color:var(--mu);cursor:pointer;transition:all .12s;white-space:nowrap}
+.mtab:hover{border-color:var(--pri);color:var(--pri)}
+.mtab.on{background:var(--pri);border-color:var(--pri);color:#fff}
+.mtab.locked::after{content:' 🔒';font-size:.62rem}
+
+/* ─ Mobile bottom nav ─ */
+#mob-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--sur);border-top:1px solid var(--bdr);z-index:100;height:var(--mnh);box-shadow:0 -2px 10px rgba(0,0,0,.06)}
+.mob-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:none;background:none;cursor:pointer;color:var(--fa);font-size:.58rem;font-weight:500;transition:color .12s;padding:.3rem 0;position:relative}
+.mob-btn svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.75}
+.mob-btn.active{color:var(--pri)}
+.mob-btn .mb-badge{position:absolute;top:4px;right:calc(50% - 14px);background:var(--red);color:#fff;font-size:.55rem;font-weight:700;padding:0 4px;border-radius:var(--pill);min-width:14px;text-align:center}
+
+/* ─ Print ─ */
+@media print{#sidebar,#mob-hdr,#mob-nav,#toasts,#loading,#modal-ov,.sec-hdr-r,.toolbar .btn,no-print{display:none!important}.section{display:block!important;padding:0}body{overflow:auto}#app{height:auto}}
+
+/* ─ Responsive ─ */
+@media(max-width:768px){
+  #sidebar{display:none;position:fixed;top:0;left:0;bottom:0;z-index:200;transform:translateX(-100%)}
+  #sidebar.open{transform:translateX(0)}
+  #sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:199}
+  #sb-overlay.on{display:block}
+  #mob-hdr{display:flex}
+  #mob-nav{display:flex}
+  .section{padding:1rem;padding-bottom:calc(var(--mnh) + 1rem)}
+  .charts-row{grid-template-columns:1fr}
+  .stats-grid{grid-template-columns:repeat(2,1fr)}
+  .frow{grid-template-columns:1fr}
+  .mbox{max-width:100%;border-bottom-left-radius:0;border-bottom-right-radius:0}
+  #modal-ov.show{align-items:flex-end;padding:0}
+  .srch-inp{width:160px}
+}
+@media(max-width:400px){.stats-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- ── Sidebar ── -->
+  <aside id="sidebar">
+    <div class="sb-brand">
+      <div class="sb-ico">
+        <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+      </div>
+      <div>
+        <div class="sb-title">Inventory ERP</div>
+        <div class="sb-sub">Manufacturing Suite</div>
+      </div>
+    </div>
+
+    <div class="sb-sect-lbl">Main Menu</div>
+
+    <button class="nav-link active" data-sec="dashboard" onclick="navTo('dashboard')">
+      <svg class="nl-ic" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h4a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM14 5a1 1 0 011-1h4a1 1 0 011 1v6a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
+      Dashboard
+    </button>
+    <button class="nav-link" data-sec="items" onclick="navTo('items')">
+      <svg class="nl-ic" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+      Item Master
+    </button>
+    <button class="nav-link" data-sec="stock" onclick="navTo('stock')">
+      <svg class="nl-ic" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
+      Stock Entry
+    </button>
+    <button class="nav-link" data-sec="reports" onclick="navTo('reports')">
+      <svg class="nl-ic" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+      Reports
+    </button>
+    <button class="nav-link" data-sec="alerts" onclick="navTo('alerts')">
+      <svg class="nl-ic" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+      Alerts
+      <span class="nl-badge" id="sb-alert-badge" style="display:none">0</span>
+    </button>
+
+    <div class="sb-footer">Inventory ERP v1.0<br>Firebase Firestore</div>
+  </aside>
+
+  <!-- ── Main ── -->
+  <div id="main">
+    <header id="mob-hdr">
+      <button id="mob-menu-btn" onclick="toggleSidebar()">
+        <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <span id="mob-title">Dashboard</span>
+      <span class="badge b-red" id="mob-badge" style="display:none">0</span>
+    </header>
+
+    <section id="sec-dashboard" class="section active"></section>
+    <section id="sec-items"     class="section"></section>
+    <section id="sec-stock"     class="section"></section>
+    <section id="sec-reports"   class="section"></section>
+    <section id="sec-alerts"    class="section"></section>
+  </div>
+</div>
+
+<!-- Mobile bottom nav -->
+<nav id="mob-nav">
+  <button class="mob-btn active" data-sec="dashboard" onclick="navTo('dashboard')">
+    <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v6a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h4a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
+    Dashboard
+  </button>
+  <button class="mob-btn" data-sec="items" onclick="navTo('items')">
+    <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+    Items
+  </button>
+  <button class="mob-btn" data-sec="stock" onclick="navTo('stock')">
+    <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+    Stock
+  </button>
+  <button class="mob-btn" data-sec="reports" onclick="navTo('reports')">
+    <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 002 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10"/></svg>
+    Reports
+  </button>
+  <button class="mob-btn" data-sec="alerts" onclick="navTo('alerts')">
+    <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+    Alerts
+    <span class="mb-badge" id="mob-alert-dot" style="display:none">!</span>
+  </button>
+</nav>
+
+<!-- Sidebar overlay (mobile) -->
+<div id="sb-overlay" onclick="toggleSidebar()"></div>
+
+<!-- Modal -->
+<div id="modal-ov" onclick="handleOvClick(event)">
+  <div id="modal-box" class="mbox"></div>
+</div>
+
+<!-- Loading -->
+<div id="loading">
+  <div class="spinner"></div>
+  <div class="sp-txt" id="loading-txt">Loading…</div>
+</div>
+
+<!-- Toasts -->
+<div id="toasts"></div>
+
+<!-- ══════════════════════════════════════
+     FIREBASE + GLOBALS
+══════════════════════════════════════ -->
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyD4tMkjbmNO1veyiJbKwFNR6xunWE1Cgeo",
+  authDomain: "inventory-erp-90ab9.firebaseapp.com",
+  projectId: "inventory-erp-90ab9",
+  storageBucket: "inventory-erp-90ab9.firebasestorage.app",
+  messagingSenderId: "169076366340",
+  appId: "1:169076366340:web:952e2bd43c83703f3e6951"
+};
+firebase.initializeApp(firebaseConfig);
+window.db      = firebase.firestore();
+window.storage = firebase.storage();
+
+// ─ Constants ─
+window.CATS  = ['RAW MATERIAL','BOP','CONSUMABLE','FG','WIP','Miscellaneous'];
+window.UNITS = ['nos','kgs','ltr','packet','meter','box','set','pair'];
+window.CAT_COLORS = {
+  'RAW MATERIAL':'#f97316','BOP':'#a855f7','CONSUMABLE':'#22c55e',
+  'FG':'#3b82f6','WIP':'#f59e0b','Miscellaneous':'#64748b'
+};
+
+// ─ Global state ─
+window.APP_ITEMS  = [];
+window.APP_LOCKS  = {};        // key: "YYYY-M"
+window._charts    = {};
+window._unsubItems = null;
+
+// ─ HTML escape ─
+window.esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+// ─ Category pill HTML ─
+window.catPill = cat => {
+  const c = CAT_COLORS[cat]||'#64748b';
+  return `<span style="display:inline-flex;align-items:center;gap:.3rem;padding:.15rem .5rem;border-radius:99px;font-size:.62rem;font-weight:700;background:${c}22;color:${c};border:1px solid ${c}44">${esc(cat)}</span>`;
+};
+
+// ─ Thumb HTML ─
+window.thumbHtml = (url, emoji='📦') =>
+  `<div class="thumb">${url ? `<img src="${esc(url)}" loading="lazy">` : emoji}</div>`;
+
+// ─ Format month/year ─
+window.fmtMY = (m, y) => new Date(y, m-1).toLocaleString('default',{month:'long',year:'numeric'});
+window.fmtMYS = (m, y) => new Date(y, m-1).toLocaleString('default',{month:'short',year:'numeric'});
+
+// ─ Get last N months ─
+window.lastMonths = (n=12) => {
+  const list=[]; const d=new Date();
+  for(let i=0;i<n;i++){
+    list.push({month:d.getMonth()+1, year:d.getFullYear(), label:fmtMYS(d.getMonth()+1,d.getFullYear())});
+    d.setMonth(d.getMonth()-1);
+  }
+  return list;
+};
+
+// ─ Lock key ─
+window.lockKey = (m, y) => `${y}-${m}`;
+
+// ─ Loading ─
+window.showLoad = (txt='Loading…') => { document.getElementById('loading-txt').textContent=txt; document.getElementById('loading').classList.add('on'); };
+window.hideLoad = () => document.getElementById('loading').classList.remove('on');
+
+// ─ Toast ─
+window.toast = (msg, type='ok') => {
+  const c = document.getElementById('toasts');
+  const el = document.createElement('div');
+  const icons = {ok:`<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>`,err:`<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>`,info:`<path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01"/>`,warn:`<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01"/>`};
+  el.className=`toast t-${type}`;
+  el.innerHTML=`<div class="t-ic"><svg viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2.5">${icons[type]||icons.info}</svg></div>${esc(msg)}`;
+  c.appendChild(el);
+  const remove=()=>{el.classList.add('out');el.addEventListener('animationend',()=>el.remove(),{once:true});setTimeout(()=>el.remove(),400)};
+  setTimeout(remove,3400);
+};
+
+// ─ Modal ─
+window.showModal = (html, size='') => {
+  const box = document.getElementById('modal-box');
+  box.className = `mbox${size?' '+size:''}`;
+  box.innerHTML = html;
+  const ov = document.getElementById('modal-ov');
+  ov.classList.add('show');
+  document.body.style.overflow = 'hidden';
+  setTimeout(()=>box.querySelector('input,select,textarea')?.focus(),80);
+};
+window.hideModal = () => {
+  document.getElementById('modal-ov').classList.remove('show');
+  document.body.style.overflow='';
+};
+window.handleOvClick = e => { if(e.target.id==='modal-ov') hideModal(); };
+
+// ─ Confirm dialog ─
+window.confirmDialog = (msg, onConfirm, danger=true) => {
+  showModal(`
+    <div class="mhdr"><div><h3>Confirm Action</h3></div><button class="mcls" onclick="hideModal()"><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button></div>
+    <div class="mbdy" style="text-align:center;padding:2rem 1.5rem">
+      <div class="conf-icon"><svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg></div>
+      <p style="font-size:.875rem;color:var(--mu);line-height:1.65">${esc(msg)}</p>
+    </div>
+    <div class="mftr">
+      <button class="btn btn-ghost" onclick="hideModal()">Cancel</button>
+      <button class="btn ${danger?'btn-red':'btn-pri'}" onclick="hideModal();(${onConfirm.toString()})()">Confirm</button>
+    </div>`, 'msm');
+};
+
+// ─ Destroy chart ─
+window.destroyChart = key => {
+  if(_charts[key]){ _charts[key].destroy(); delete _charts[key]; }
+};
+
+// ─ Chart default ─
+Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+Chart.defaults.font.size = 11;
+
+// ─ Navigation ─
+const SEC_TITLES = {dashboard:'Dashboard',items:'Item Master',stock:'Stock Entry',reports:'Reports',alerts:'Alerts'};
+window.currentSec = 'dashboard';
+
+window.navTo = sec => {
+  if(window._unsubStock) { window._unsubStock(); window._unsubStock=null; }
+  document.querySelectorAll('.nav-link').forEach(el=>el.classList.toggle('active', el.dataset.sec===sec));
+  document.querySelectorAll('.mob-btn').forEach(el=>el.classList.toggle('active', el.dataset.sec===sec));
+  document.querySelectorAll('.section').forEach(el=>el.classList.remove('active'));
+  document.getElementById(`sec-${sec}`).classList.add('active');
+  document.getElementById('mob-title').textContent = SEC_TITLES[sec]||sec;
+  window.currentSec = sec;
+  closeSidebar();
+  const fns={dashboard:initDashboard,items:initItems,stock:initStock,reports:initReports,alerts:initAlerts};
+  if(fns[sec]) fns[sec]();
+};
+
+// ─ Sidebar mobile ─
+window.toggleSidebar = () => {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sb-overlay').classList.toggle('on');
+};
+window.closeSidebar = () => {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sb-overlay').classList.remove('on');
+};
+
+// ─ Alert badge updater ─
+window.updateAlertBadge = () => {
+  const now = new Date();
+  // Count items below min stock using last available entry
+  // Quick count from APP_ITEMS (full logic in alerts.js)
+  const n = APP_ITEMS.filter(i => (i._lastQty||0) <= (i.minStock||0) && APP_ITEMS.length).length;
+  const badge = document.getElementById('sb-alert-badge');
+  const mob   = document.getElementById('mob-badge');
+  const dot   = document.getElementById('mob-alert-dot');
+  if(n > 0){
+    badge.textContent=n; badge.style.display='';
+    mob.textContent=n; mob.style.display='';
+    dot.style.display='';
+  } else {
+    badge.style.display='none'; mob.style.display='none'; dot.style.display='none';
+  }
+};
+
+// ─ Boot: load items real-time ─
+window._unsubItems = db.collection('items').orderBy('name').onSnapshot(snap => {
+  window.APP_ITEMS = snap.docs.map(d=>({id:d.id,...d.data()}));
+  if(window.currentSec==='dashboard') initDashboard();
+  if(window.currentSec==='alerts')    initAlerts();
+}, err => {
+  console.error('Items sync error', err);
+  toast('Connection error — check Firebase config','err');
+});
+
+// ─ Load locks ─
+db.collection('monthLocks').get().then(snap=>{
+  snap.docs.forEach(d=>{ window.APP_LOCKS[d.id]=d.data(); });
+}).catch(()=>{});
+
+// ─ Start ─
+initDashboard();
+</script>
+
+<script src="dashboard.js"></script>
+<script src="items.js"></script>
+<script src="stock.js"></script>
+<script src="reports.js"></script>
+<script src="alerts.js"></script>
+</body>
+</html>
