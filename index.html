@@ -524,29 +524,30 @@ window.updateAlertBadge = () => {
   }
 };
 
-// ─ Boot: load items real-time ─
-window._unsubItems = db.collection('items').orderBy('name').onSnapshot(snap => {
-  window.APP_ITEMS = snap.docs.map(d=>({id:d.id,...d.data()}));
-  if(window.currentSec==='dashboard') initDashboard();
-  if(window.currentSec==='alerts')    initAlerts();
-}, err => {
-  console.error('Items sync error', err);
-  toast('Connection error — check Firebase config','err');
+// ─ Boot (deferred until all JS files are loaded) ─
+document.addEventListener('DOMContentLoaded', () => {
+  // Load locks first, then start items listener
+  db.collection('monthLocks').get().then(snap=>{
+    snap.docs.forEach(d=>{ window.APP_LOCKS[d.id]=d.data(); });
+  }).catch(()=>{});
+
+  window._unsubItems = db.collection('items').orderBy('name').onSnapshot(snap => {
+    window.APP_ITEMS = snap.docs.map(d=>({id:d.id,...d.data()}));
+    if(window.currentSec==='dashboard' && typeof initDashboard==='function') initDashboard();
+    if(window.currentSec==='alerts'    && typeof initAlerts==='function')    initAlerts();
+  }, err => {
+    console.error('Items sync error', err);
+    toast('Connection error — check Firebase config','err');
+  });
+
+  navTo('dashboard');
 });
-
-// ─ Load locks ─
-db.collection('monthLocks').get().then(snap=>{
-  snap.docs.forEach(d=>{ window.APP_LOCKS[d.id]=d.data(); });
-}).catch(()=>{});
-
-// ─ Start ─
-initDashboard();
 </script>
 
-<script src="dashboard.js"></script>
-<script src="items.js"></script>
-<script src="stock.js"></script>
-<script src="reports.js"></script>
-<script src="alerts.js"></script>
+<script defer src="dashboard.js"></script>
+<script defer src="items.js"></script>
+<script defer src="stock.js"></script>
+<script defer src="reports.js"></script>
+<script defer src="alerts.js"></script>
 </body>
 </html>
