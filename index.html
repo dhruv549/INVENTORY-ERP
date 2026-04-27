@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Inventory ERP — Manufacturing</title>
+<link rel="preconnect" href="https://www.gstatic.com">
+<link rel="preconnect" href="https://firestore.googleapis.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="dns-prefetch" href="https://cdn.sheetjs.com">
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -354,10 +358,10 @@ textarea.fc{resize:vertical;min-height:72px}
   <div id="modal-box" class="mbox"></div>
 </div>
 
-<!-- Loading -->
-<div id="loading">
+<!-- Loading — visible by default; JS hides it once Firebase is ready -->
+<div id="loading" class="on">
   <div class="spinner"></div>
-  <div class="sp-txt" id="loading-txt">Loading…</div>
+  <div class="sp-txt" id="loading-txt">Connecting…</div>
 </div>
 
 <!-- Toasts -->
@@ -375,8 +379,15 @@ const firebaseConfig = {
   messagingSenderId: "169076366340",
   appId: "1:169076366340:web:952e2bd43c83703f3e6951"
 };
-firebase.initializeApp(firebaseConfig);
-window.db = firebase.firestore();
+try {
+  firebase.initializeApp(firebaseConfig);
+  window.db = firebase.firestore();
+  // Cache data locally so the app loads instantly on repeat visits (even on slow connections)
+  window.db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
+} catch(e) {
+  window.db = null;
+  document.getElementById('loading-txt').textContent = 'Failed to load Firebase — please refresh the page';
+}
 
 // ─ Constants ─
 window.CATS  = ['RAW MATERIAL','BOP','CONSUMABLE','FG','WIP','Miscellaneous'];
@@ -538,32 +549,81 @@ window.updateAlertBadge = () => {
 <!-- Boot — runs after every module above has loaded and executed -->
 <script>
 (function boot() {
-  // Apply Chart defaults now that Chart.js is guaranteed loaded
   if(typeof Chart !== 'undefined') {
     Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
     Chart.defaults.font.size = 11;
   }
 
-  // Load month locks
+  // If Firebase SDK failed to load, keep the error message visible and stop
+  if(!window.db) return;
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  function showConnectError(msg) {
+    hideLoad();
+    const sec = document.getElementById('sec-dashboard');
+    sec.classList.add('active');
+    sec.innerHTML = `
+      <div class="empty" style="padding-top:5rem">
+        <div class="eico">
+          <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+        <h3>Could not connect</h3>
+        <p>${esc(msg)}</p>
+        <button class="btn btn-pri" onclick="location.reload()">
+          <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          Try Again
+        </button>
+      </div>`;
+  }
+
+  // ── Connection bootstrap ────────────────────────────────────────────────────
+
+  let started = false;
+
+  // If Firebase hasn't responded in 12 s, show a helpful error rather than a blank screen
+  const connectTimeout = setTimeout(() => {
+    if(!started) showConnectError('Connection timed out. Please check your internet connection and try again.');
+  }, 12000);
+
+  // Update the loading text after 4 s so slow users know something is happening
+  const slowHint = setTimeout(() => {
+    if(!started) document.getElementById('loading-txt').textContent = 'Still connecting…';
+  }, 4000);
+
   db.collection('monthLocks').get().then(snap => {
     snap.docs.forEach(d => { window.APP_LOCKS[d.id] = d.data(); });
   }).catch(() => {});
 
-  // Real-time items listener — populates APP_ITEMS and re-renders the active section
   window._unsubItems = db.collection('items').orderBy('name').onSnapshot(snap => {
     window.APP_ITEMS = snap.docs.map(d => ({id: d.id, ...d.data()}));
-    // Refresh dashboard, items list, and alerts whenever the items collection changes
+
+    if(!started) {
+      // First response — clear timers, hide loader, and navigate to dashboard
+      started = true;
+      clearTimeout(connectTimeout);
+      clearTimeout(slowHint);
+      hideLoad();
+      navTo('dashboard');
+      return;
+    }
+
+    // Subsequent real-time updates — refresh the visible section
     if(['dashboard','items','alerts'].includes(window.currentSec)) {
       const fn = window[SEC_INIT[window.currentSec]];
       if(typeof fn === 'function') fn();
     }
   }, err => {
+    if(started) return; // error after initial load — toast already handled elsewhere
+    started = true;
+    clearTimeout(connectTimeout);
+    clearTimeout(slowHint);
     console.error('Items sync error', err);
-    toast('Connection error — check Firebase config', 'err');
+    const msg = err.code === 'permission-denied'
+      ? 'Access denied. You do not have permission to view this data.'
+      : `Database error: ${err.message}`;
+    showConnectError(msg);
   });
-
-  // Navigate to dashboard
-  navTo('dashboard');
 })();
 </script>
 </body>
